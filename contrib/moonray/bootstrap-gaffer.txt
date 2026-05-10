@@ -1,0 +1,49 @@
+You're the Gaffer-side Claude session in a two-session port of OpenMoonRay
+into Gaffer. A companion Moonray-fork Claude session in ~/work/moonray-fork
+is handling Phase 0 (porting Moonray's deps to match Gaffer's stack); you
+handle everything Gaffer-side.
+
+Read `contrib/moonray/PLAN.md` first for full context. The plan was
+finalized in a prior planning session and is the canonical spec — do not
+re-litigate decisions there without flagging to the user.
+
+Your immediate scope: Phase 1 — build skeleton.
+
+1. Add SConstruct entry for a new IECoreSceneHydra library (Layer 1,
+   generic Hydra-bridge, no MOONRAY_ROOT requirement; depends only on USD).
+2. Stub src/IECoreSceneHydra/Renderer.{h,cpp}: HydraRenderer abstract
+   subclass of IECoreScenePreview::Renderer per the API sketch in PLAN.md
+   § "IECoreSceneHydra public API sketch".
+3. Add MOONRAY_ROOT SConstruct option (mirror the RENDERMAN_ROOT block at
+   SConstruct lines ~177-180).
+4. Add IECoreMoonray, GafferMoonray, GafferMoonrayUI library skeletons
+   (mirror the GafferCycles block at SConstruct lines ~1387-1419).
+5. Stub src/IECoreMoonray/Renderer.cpp: subclass HydraRenderer with
+   HdMoonrayRendererPlugin; register
+   IECoreScenePreview::Renderer::TypeDescription<MoonrayRenderer>("Moonray").
+   All virtual methods log "not yet implemented" and return.
+
+Constraints:
+- Work on a fresh feature branch off main, e.g. feature/moonray-layer1-hydra.
+  Do NOT push to claude/moonray-gaffer-planning-deg3f — that's the planning
+  branch, frozen.
+- The Moonray session is producing /opt/moonray-gaffer in parallel — treat
+  MOONRAY_ROOT as a stub for now; the SConstruct block should gate cleanly
+  on its absence (mirror the RENDERMAN_ROOT pattern).
+- Acceptance for Phase 1: Gaffer compiles with and without MOONRAY_ROOT
+  set. With it set, "Moonray" appears in the renderer dropdown of any
+  Render or InteractiveRender node.
+- Ask the user before architectural decisions or scope changes.
+
+Files to study before writing new code (from PLAN.md § "Files to reuse as
+templates"):
+- include/GafferScene/Private/IECoreScenePreview/Renderer.h — the contract
+- src/IECoreRenderMan/Renderer.cpp — thinnest renderer in the tree;
+  closest in spirit to a Hydra-bridge wrapper
+- src/GafferCycles/IECoreCyclesPreview/Renderer.cpp — most fully-featured;
+  reference for IPR semantics, options buffering, output handling
+- SConstruct lines 1387-1419 — GafferCycles build block, the template for
+  new renderer libraries
+
+Coordinate with the Moonray session via PLAN.md updates if scope shifts
+or new patches surface from their Phase 0 work.
