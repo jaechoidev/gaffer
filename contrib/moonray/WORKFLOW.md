@@ -117,6 +117,27 @@ git commit -m "Add CLAUDE.md for Gaffer-port soft fork"
 git push -u origin feature/gaffer-deps-port
 ```
 
+### 5. Run the container quirks setup script
+
+The `gaffer-build` container ships some accidental cruft (orphan TBB
+2020-era headers under `/usr/local/include/tbb/`, etc.) that shadows
+the modern oneTBB in `/work/_install/gaffer-deps/`. The Moonray fork
+maintains an idempotent setup script that fixes these quirks:
+
+```bash
+dexec bash /work/openmoonray/building/gaffer/setup-container.sh
+```
+
+Run this once after launching the persistent container, and again any
+time you `docker rm` and recreate the container (the script is
+idempotent, so re-running is safe). Both Claude sessions assume this
+script has run before any build is attempted.
+
+The script lives in the Moonray fork at
+`building/gaffer/setup-container.sh` on `feature/gaffer-deps-port`. If
+you ever pull changes to that branch and see the script updated, re-run
+it — new container quirks may have been added.
+
 ## Daily workflow
 
 ### Starting a working session
