@@ -1,0 +1,38 @@
+#!/usr/bin/env bash
+# dexec — run a command inside the gaffer-build container.
+#
+# Usage:
+#   dexec <command> [args...]
+#
+# Override the container name via DEXEC_CONTAINER:
+#   DEXEC_CONTAINER=other-name dexec ls /work
+#
+# Auto-detects whether stdin/stdout are TTYs and passes -t accordingly,
+# so it works both for interactive shells and for non-TTY callers like
+# Claude Code's Bash tool.
+
+set -euo pipefail
+
+CONTAINER="${DEXEC_CONTAINER:-gaffer-build}"
+
+if ! docker inspect "$CONTAINER" >/dev/null 2>&1; then
+  echo "dexec: container '$CONTAINER' not found." >&2
+  echo "Start it with the command in contrib/moonray/WORKFLOW.md." >&2
+  exit 1
+fi
+
+if [ "$(docker inspect -f '{{.State.Running}}' "$CONTAINER")" != "true" ]; then
+  echo "dexec: container '$CONTAINER' exists but is not running." >&2
+  echo "Resume it with: docker start $CONTAINER" >&2
+  exit 1
+fi
+
+if [ $# -eq 0 ]; then
+  set -- bash
+fi
+
+if [ -t 0 ] && [ -t 1 ]; then
+  exec docker exec -it "$CONTAINER" "$@"
+else
+  exec docker exec -i "$CONTAINER" "$@"
+fi

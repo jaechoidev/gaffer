@@ -327,144 +327,78 @@ implement the same five hooks; nothing else.
 
 ## Working environment & session handoff
 
-The port is structured as **two parallel Claude Code sessions** sharing one
-dev container. Each session is locked to its own repo via GitHub MCP scope
-and pushes to its own branch. The plan file (this document, mirrored as
-`contrib/moonray/PLAN.md` in the Gaffer fork) is the shared north star.
+The port is structured as **two parallel Claude Code sessions** running
+on the host (Pattern A: macOS-native Claude, persistent Linux build
+container behind it). Each session is locked to its own repo via GitHub
+MCP scope and pushes to its own branch. This document is the shared
+north star; `WORKFLOW.md` is the operational runbook with the concrete
+commands.
 
 ### Session layout
 
 | | Gaffer session | Moonray session |
 |---|---|---|
-| Working dir | `~/work/gaffer` | `~/work/moonray-fork` |
-| MCP scope | `jaechoidev/gaffer` | your Moonray fork (e.g. `jaechoidev/openmoonray`) |
+| Host working dir | `<host>/work/gaffer` | `<host>/work/openmoonray` |
+| Container path | `/work/gaffer` | `/work/openmoonray` |
+| MCP scope | `jaechoidev/gaffer` | `jaechoidev/openmoonray` |
 | Branch | `claude/moonray-gaffer-planning-deg3f` (planning), then `feature/moonray-layer1-hydra`, `feature/moonray-layer2-stub`, etc. for implementation | `feature/gaffer-deps-port` |
 | Primary work | `IECoreSceneHydra` Layer 1, `IECoreMoonray` Layer 2, SConstruct, Python bindings | Phase 0: patch Moonray's CMake / source against Gaffer's dep stack. Produce a working `MOONRAY_ROOT`. |
-| Output to other side | `MOONRAY_ROOT` consumer (SConstruct) | `MOONRAY_ROOT` producer (install dir on shared filesystem) |
+| Output to other side | `MOONRAY_ROOT` consumer (SConstruct) | `MOONRAY_ROOT` producer (`/work/_install/moonray-gaffer`) |
 
 ### Container & filesystem
 
-- **Container:** `ghcr.io/gafferhq/build/build:3.4.0` (Ubuntu 24.04, Python
-  3.11, Gaffer's CI toolchain). Single container instance shared by both
-  sessions so binaries are mutually loadable.
-- **Bind mounts:** `~/work` on the host → `/work` in the container. Both
-  repos visible to both sessions.
-- **Build output:** Moonray installs to `/opt/moonray-gaffer` inside the
-  container; Gaffer's SConstruct sets `MOONRAY_ROOT=/opt/moonray-gaffer`.
-- **Window layout:** `tmux` with two panes (one shell per session) or two
-  terminal windows. Each pane runs `claude` from its session's working dir.
+- **Container:** `ghcr.io/gafferhq/build/build:3.4.0` (Linux x86_64,
+  Gaffer's CI toolchain). Single persistent container named
+  `gaffer-build`, run detached (`docker run -d ... sleep infinity`).
+- **Bind mount:** `<host>/work` → `/work`. Both repos and build
+  outputs visible to both sides.
+- **Build output:** Moonray installs to `/work/_install/moonray-gaffer`
+  (under the bind mount, so it survives container restarts). Gaffer's
+  SConstruct sets `MOONRAY_ROOT=/work/_install/moonray-gaffer`.
+- **Build invocation:** the host-side `dexec` wrapper script
+  (`contrib/moonray/scripts/dexec`) takes any command and runs it inside
+  the container. Both Claude sessions and the user use it for every
+  CMake / scons / test invocation.
 
 ### Sync points (handoff between sessions)
 
 | When | Moonray session | Gaffer session |
 |---|---|---|
-| Day 0 | Start Phase 0; reads PLAN.md | Continues planning refinements; starts SConstruct skeleton (Phase 1) — can stub `MOONRAY_ROOT` with empty install for now |
-| Phase 0 done | Hands off `/opt/moonray-gaffer` + a `dependencies/moonray-patches/*.patch` set | Builds against the real `MOONRAY_ROOT`; verifies Phase 1 skeleton compiles |
+| Day 0 | Start Phase 0; reads PLAN.md + WORKFLOW.md | Starts SConstruct skeleton (Phase 1) — `MOONRAY_ROOT` stubbed for now |
+| Phase 0 done | Hands off `/work/_install/moonray-gaffer` + `dependencies/moonray-patches/*.patch` | Builds against the real `MOONRAY_ROOT`; verifies Phase 1 skeleton compiles |
 | Phase 2 spike | (idle, or starts CI tooling) | Tests Hydra bridge with hdMoonray; reports back any Moonray-side patch needs |
 | Each new Moonray release | Rebases fork; re-runs patch set | Pulls updated `MOONRAY_ROOT`; reruns test suite |
 
-### Bootstrapping the new Moonray session with context
+### Bootstrapping context for the new sessions
 
-Three mechanisms working together:
+Three artifacts in this directory bootstrap a fresh Claude session
+with project context:
 
-**1. `CLAUDE.md` at the root of the Moonray fork.** Claude Code auto-loads
-this on session start. Suggested content:
+1. **`CLAUDE.md.template`** — copied to the Moonray fork's root as
+   `CLAUDE.md`. Claude Code auto-loads it on session start in that repo.
+2. **`bootstrap-moonray.txt`** — pasted as the first user message in the
+   Moonray-side Claude session.
+3. **`bootstrap-gaffer.txt`** — pasted as the first user message in the
+   Gaffer-side Claude session.
 
-```markdown
-# Moonray fork for Gaffer integration
+This document (`PLAN.md`) is the read-only canonical reference both
+sessions consult when scope, priority, or interface questions arise.
 
-This is a soft fork of OpenMoonRay maintained for the Gaffer port.
-**Do not push patches to upstream `dreamworksanimation/openmoonray`
-without explicit user approval.**
+### Setup checklist
 
-## Goal
-Build Moonray against Gaffer 1.6's dep stack so binaries are ABI-compatible
-in the same process:
-- Python 3.11.14 (upstream Moonray expects 3.9)
-- OpenUSD 26.05 (upstream Moonray uses likely 24.x or 25.x)
-- Boost 1.85.0 (upstream Moonray likely 1.78–1.82)
-- oneTBB 2021.13.0
-- OpenImageIO 3.0.6.1 (upstream Moonray likely 2.4–2.5)
-- OpenEXR 3.3.6, Imath 3.1.12, Embree 4.4.0
+See `WORKFLOW.md` for the full step-by-step. Summary:
 
-## Strategy
-Soft fork. Keep upstream Moonray clean. Patches live in
-`dependencies/moonray-patches/*.patch`, applied at build time. Rebase
-against new Moonray releases periodically.
-
-## Plan
-Full port plan: `~/work/gaffer/contrib/moonray/PLAN.md`
-(or https://github.com/jaechoidev/gaffer/blob/claude/moonray-gaffer-planning-deg3f/contrib/moonray/PLAN.md).
-This session owns Phase 0 only.
-
-## Output
-A working `/opt/moonray-gaffer` install dir for the Gaffer session to link
-against, plus the patch set in `dependencies/moonray-patches/`.
-
-## Companion session
-Gaffer-side work happens in a separate Claude session in `~/work/gaffer`.
-Coordinate via the shared filesystem and PLAN.md updates.
-```
-
-**2. Bootstrap prompt** — paste as the first user message when starting
-the new Moonray session:
-
-```
-You're the Moonray-fork Claude session in a two-session port of OpenMoonRay
-into Gaffer. The Gaffer-side session is implementing the
-IECoreScenePreview::Renderer subclass that routes through hdMoonray; your
-job is Phase 0 — soft-forking Moonray to build against Gaffer's dep stack.
-
-Read `~/work/gaffer/contrib/moonray/PLAN.md` first for full context (or
-the GitHub URL in CLAUDE.md). The "Phase 0" section spells out the
-specific dep version targets and the soft-fork strategy.
-
-Your immediate first action: inspect the current state of upstream
-Moonray's CMake/build configuration to identify the exact pinned versions
-(start with CMakeLinuxPresets.json, building/rocky9/, and the top-level
-CMakeLists.txt). Build a precise picture of what needs patching, then
-report back before making changes.
-
-Constraints:
-- Do not push to upstream dreamworksanimation/openmoonray.
-- All changes go to feature/gaffer-deps-port on this fork.
-- Maintain patches under dependencies/moonray-patches/ where feasible
-  rather than direct edits to the source tree, so we can rebase against
-  upstream Moonray releases cleanly.
-- Ask the user before architectural decisions (e.g., whether to vendor a
-  dep, drop a Moonray feature, etc.).
-
-When Phase 0 is complete, the Gaffer session needs:
-- A working `MOONRAY_ROOT` install at /opt/moonray-gaffer
-- The patch set in dependencies/moonray-patches/*.patch
-- A short status report on what was patched, what's outstanding, and any
-  known limitations
-```
-
-**3. Plan file** — read-only canonical reference. The Moonray session
-should read it on bootstrap and consult it whenever questions of scope,
-priority, or interface arise.
-
-### Things to do before starting either session
-
-1. Fork `dreamworksanimation/openmoonray` to your GitHub org via the web
-   UI or `gh repo fork dreamworksanimation/openmoonray --clone=false`.
-2. Clone both repos under `~/work`:
-   - `git clone git@github.com:jaechoidev/gaffer.git ~/work/gaffer`
-   - `git clone git@github.com:jaechoidev/openmoonray.git ~/work/moonray-fork`
-3. Check out the planning branch in the Gaffer clone:
-   `git -C ~/work/gaffer checkout claude/moonray-gaffer-planning-deg3f`
-4. Add the `CLAUDE.md` template above to the Moonray fork root, commit
-   to `feature/gaffer-deps-port`, push.
-5. Pull the build container:
-   `docker pull ghcr.io/gafferhq/build/build:3.4.0`
-6. Start the container with both repos mounted:
-   `docker run -it --rm -v ~/work:/work -w /work ghcr.io/gafferhq/build/build:3.4.0 bash`
-7. Open two `tmux` panes inside the container; in each, `cd` to the
-   respective repo and launch `claude`.
-8. In the Moonray session: paste the bootstrap prompt above.
-9. In the Gaffer session: continue from where this session left off
-   (e.g., "ready to start Phase 1 SConstruct skeleton work").
+1. Fork `dreamworksanimation/openmoonray`; clone both repos under a
+   common parent dir on the host (sibling layout: `<host>/work/gaffer`
+   and `<host>/work/openmoonray`).
+2. Pull the build container: `docker pull ghcr.io/gafferhq/build/build:3.4.0`.
+3. Launch the persistent container (named `gaffer-build`) with the work
+   dir bind-mounted at `/work`.
+4. Add `<gaffer>/contrib/moonray/scripts` to host PATH so `dexec` is
+   available.
+5. Copy `CLAUDE.md.template` → `<openmoonray>/CLAUDE.md`, commit, push.
+6. Open two host terminals; `cd` to each repo; run `claude`; paste the
+   matching bootstrap prompt.
 
 ### Effort sizing (single senior engineer, dedicated)
 

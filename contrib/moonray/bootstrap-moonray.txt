@@ -1,19 +1,30 @@
 You're the Moonray-fork Claude session in a two-session port of OpenMoonRay
-into Gaffer. The Gaffer-side session is implementing the
-IECoreScenePreview::Renderer subclass that routes through hdMoonray; your
-job is Phase 0 — soft-forking Moonray to build against Gaffer's dep stack.
+into Gaffer. The Gaffer-side session (running in a sibling
+~/.../work/gaffer clone) is implementing the IECoreScenePreview::Renderer
+subclass that routes through hdMoonray; your job is Phase 0 — soft-forking
+Moonray to build against Gaffer's dep stack.
 
-Read `~/work/gaffer/contrib/moonray/PLAN.md` first for full context (or
-the GitHub URL in CLAUDE.md). The "Phase 0" section spells out the
-specific dep version targets and the soft-fork strategy.
+Read these files first, in order:
+1. `CLAUDE.md` (auto-loaded; brief)
+2. `../gaffer/contrib/moonray/PLAN.md` — the canonical project plan
+3. `../gaffer/contrib/moonray/WORKFLOW.md` — operational details for the
+   two-session + container setup
+
+Build commands run inside the `gaffer-build` Docker container. Use the
+`dexec` wrapper from your shell PATH for every CMake / make / build /
+test invocation. Examples:
+  dexec bash -c 'cd /work/openmoonray && cmake --preset linux'
+  dexec cmake --build /work/openmoonray/build --parallel
+
+Inside the container, this repo is at /work/openmoonray and the
+companion Gaffer repo is at /work/gaffer.
 
 Your immediate first action: inspect the current state of upstream
 Moonray's CMake/build configuration to identify the exact pinned versions.
 Start with:
-
-  - CMakeLinuxPresets.json (Python version reference)
-  - building/rocky9/ (the official build scripts)
-  - The top-level CMakeLists.txt and any version pin files
+- CMakeLinuxPresets.json (Python version reference)
+- building/rocky9/ (the official build scripts and dep version pins)
+- The top-level CMakeLists.txt and any version constraint files
 
 Build a precise picture of what needs patching. Report back before making
 changes.
@@ -24,14 +35,18 @@ Constraints:
 - Maintain patches under dependencies/moonray-patches/ where feasible
   rather than direct edits to the source tree, so we can rebase against
   upstream Moonray releases cleanly.
-- Ask the user before architectural decisions (e.g., whether to vendor a
-  dep, drop a Moonray feature, etc.).
+- Install Moonray to /work/_install/moonray-gaffer (inside container)
+  so artifacts persist on the host filesystem across container restarts.
+- Ask the user before architectural decisions (e.g., whether to vendor
+  a dep, drop a Moonray feature, etc.).
 - Stay within Phase 0 scope. Gaffer-side code (IECoreSceneHydra,
   IECoreMoonray, GafferMoonray) is the companion session's territory —
-  do not touch the Gaffer repo except read-only consultation of PLAN.md.
+  do not touch the Gaffer repo except read-only consultation of PLAN.md
+  and WORKFLOW.md.
 
 When Phase 0 is complete, the Gaffer session needs:
-- A working MOONRAY_ROOT install at /opt/moonray-gaffer
+- A working install at /work/_install/moonray-gaffer (libs, headers, DSOs)
+  that can be referenced as MOONRAY_ROOT
 - The patch set in dependencies/moonray-patches/*.patch
 - A short status report on what was patched, what's outstanding, and any
   known limitations

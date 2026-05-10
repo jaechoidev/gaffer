@@ -1,11 +1,22 @@
 You're the Gaffer-side Claude session in a two-session port of OpenMoonRay
-into Gaffer. A companion Moonray-fork Claude session in ~/work/moonray-fork
-is handling Phase 0 (porting Moonray's deps to match Gaffer's stack); you
-handle everything Gaffer-side.
+into Gaffer. A companion Moonray-fork Claude session in a sibling
+~/.../work/openmoonray clone is handling Phase 0 (porting Moonray's deps
+to match Gaffer's stack); you handle everything Gaffer-side.
 
-Read `contrib/moonray/PLAN.md` first for full context. The plan was
-finalized in a prior planning session and is the canonical spec — do not
-re-litigate decisions there without flagging to the user.
+Read these files first, in order:
+1. `contrib/moonray/PLAN.md` — the canonical project plan (finalized in a
+   prior planning session; do not re-litigate decisions there without
+   flagging to the user)
+2. `contrib/moonray/WORKFLOW.md` — operational details for the
+   two-session + container setup
+
+Build commands run inside the `gaffer-build` Docker container. Use the
+`dexec` wrapper from your shell PATH for every scons / build / test
+invocation. Example:
+  dexec bash -c 'cd /work/gaffer && MOONRAY_ROOT=/work/_install/moonray-gaffer scons build'
+
+Inside the container, this repo is at /work/gaffer and the companion
+Moonray repo is at /work/openmoonray.
 
 Your immediate scope: Phase 1 — build skeleton.
 
@@ -25,11 +36,11 @@ Your immediate scope: Phase 1 — build skeleton.
 
 Constraints:
 - Work on a fresh feature branch off main, e.g. feature/moonray-layer1-hydra.
-  Do NOT push to claude/moonray-gaffer-planning-deg3f — that's the planning
-  branch, frozen.
-- The Moonray session is producing /opt/moonray-gaffer in parallel — treat
-  MOONRAY_ROOT as a stub for now; the SConstruct block should gate cleanly
-  on its absence (mirror the RENDERMAN_ROOT pattern).
+  Do NOT push to claude/moonray-gaffer-planning-deg3f — that's the
+  planning branch, frozen.
+- The Moonray session is producing /work/_install/moonray-gaffer in
+  parallel — treat MOONRAY_ROOT as a stub for now; the SConstruct block
+  should gate cleanly on its absence (mirror the RENDERMAN_ROOT pattern).
 - Acceptance for Phase 1: Gaffer compiles with and without MOONRAY_ROOT
   set. With it set, "Moonray" appears in the renderer dropdown of any
   Render or InteractiveRender node.

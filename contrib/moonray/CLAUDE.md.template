@@ -26,18 +26,25 @@ against new Moonray releases periodically (every 2–3 months).
 
 Full port plan lives in the companion Gaffer fork:
 
-- Local: `~/work/gaffer/contrib/moonray/PLAN.md`
+- Sibling clone: `../gaffer/contrib/moonray/PLAN.md`
+- Inside the build container: `/work/gaffer/contrib/moonray/PLAN.md`
 - GitHub: https://github.com/jaechoidev/gaffer/blob/claude/moonray-gaffer-planning-deg3f/contrib/moonray/PLAN.md
 
+The operational runbook (Pattern A workflow, container setup, `dexec`
+helper, daily commands) lives at `../gaffer/contrib/moonray/WORKFLOW.md`.
+
 This session owns **Phase 0 only** — porting Moonray's build to match
-Gaffer's dep stack and producing a working install at `/opt/moonray-gaffer`.
+Gaffer's dep stack and producing a working install at
+`/work/_install/moonray-gaffer` (visible from the host as
+`<host work dir>/_install/moonray-gaffer`).
 
 ## Output
 
 When Phase 0 is complete, hand off to the Gaffer session:
 
-1. A working `MOONRAY_ROOT` install at `/opt/moonray-gaffer` containing
-   libs, headers, and DSOs that the Gaffer SConstruct can link against.
+1. A working `MOONRAY_ROOT` install at `/work/_install/moonray-gaffer`
+   containing libs, headers, and DSOs that the Gaffer SConstruct can
+   link against.
 2. The patch set in `dependencies/moonray-patches/*.patch`.
 3. A short status report on what was patched, what's outstanding, and
    any known limitations.
@@ -48,8 +55,17 @@ When Phase 0 is complete, hand off to the Gaffer session:
 - Do NOT push to `dreamworksanimation/openmoonray`. Pushes only to this
   fork.
 
+## Build commands
+
+All builds run inside the `gaffer-build` Docker container via the
+`dexec` wrapper on the host PATH (see `../gaffer/contrib/moonray/WORKFLOW.md`).
+Example:
+
+    dexec cmake --build /work/openmoonray/build --parallel
+
 ## Companion session
 
-Gaffer-side work happens in a separate Claude session in `~/work/gaffer`.
-Coordinate via the shared filesystem (`/work/` inside the build container)
+Gaffer-side work happens in a separate Claude session running against
+the sibling `../gaffer` clone. Coordinate via the shared filesystem
+(`/work/` inside the build container; sibling host paths outside it)
 and PLAN.md updates.
